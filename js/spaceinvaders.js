@@ -321,6 +321,7 @@ GameOverState.prototype.keyDown = function(game, keyCode) {
 function PlayState(config, level) {
     this.config = config;
     this.level = level;
+    this.godMode = false;
 
     //  Game state.
     this.invaderCurrentVelocity =  10;
@@ -371,6 +372,25 @@ PlayState.prototype.enter = function(game) {
     this.invaderCurrentVelocity = this.invaderInitialVelocity;
     this.invaderVelocity = {x: -this.invaderInitialVelocity, y:0};
     this.invaderNextVelocity = null;
+
+    // Create the shields
+    this.shields = [];
+    // shield pod
+    let start = game.gameBounds.left + 18 * 2;
+    for (let i = 0; i < 3; i++) {
+        this.shields.push(new Shield(start - 18 * i, game.height - game.height / 3));
+    }
+    start = game.width / 2 + 18;
+    for (let i = 0; i < 3; i++) {
+        this.shields.push(new Shield(start - 18 * i, game.height - game.height / 3));
+    }
+    start = game.gameBounds.right;
+    for (let i = 0; i < 3; i++) {
+        this.shields.push(new Shield(start - 18 * i, game.height - game.height / 3));
+    }
+
+    console.log(game.gameBounds);
+
 };
 
 PlayState.prototype.update = function(game, dt) {
@@ -524,10 +544,39 @@ PlayState.prototype.update = function(game, dt) {
         if(bomb.x >= (this.ship.x - this.ship.width/2) && bomb.x <= (this.ship.x + this.ship.width/2) &&
                 bomb.y >= (this.ship.y - this.ship.height/2) && bomb.y <= (this.ship.y + this.ship.height/2)) {
             this.bombs.splice(i--, 1);
-            game.lives--;
-            game.sounds.playSound('explosion');
+            if (!this.godMode) {
+                game.lives--;
+                game.sounds.playSound('explosion');
+            }
         }
                 
+    }
+
+    // Check for bomb/shield collisions.
+    for (let i = 0; i < this.shields.length; i++) {
+        let shield = this.shields[i];
+        let bang = false;
+        for (let j = 0; j < this.bombs.length; j++) {
+            // console.log(shield, bomb)
+            let bomb = this.bombs[j];
+
+            if (bomb.x >= (shield.x - shield.width / 2) && bomb.x <= (shield.x + shield.width / 2) &&
+                bomb.y >= (shield.y - shield.height / 2) && bomb.y <= (shield.y + shield.height / 2)) {
+                //  Remove the bomb, set 'bang' so we don't process
+                //  this bomb again.
+                this.bombs.splice(j--, 1);
+                if (shield.lives <= 0) {
+                    bang = true;
+                } else {
+                    shield.lives -= 1;
+                }
+                
+                break;
+            }
+        }    
+        if (bang) {
+            this.shields.splice(i--, 1);
+        }    
     }
 
     //  Check for invader/ship collisions.
@@ -570,6 +619,12 @@ PlayState.prototype.draw = function(game, dt, ctx) {
     for(var i=0; i<this.invaders.length; i++) {
         var invader = this.invaders[i];
         ctx.fillRect(invader.x - invader.width/2, invader.y - invader.height/2, invader.width, invader.height);
+    }
+
+    // Draw shields
+    ctx.fillStyle = '#000066';
+    for (shield of this.shields) {
+        ctx.fillRect(shield.x - shield.width / 2, shield.y - shield.height / 2, shield.width, shield.height);
     }
 
     //  Draw bombs.
@@ -618,6 +673,19 @@ PlayState.prototype.keyDown = function(game, keyCode) {
         //  Push the pause state.
         game.pushState(new PauseState());
     }
+    if (keyCode == 71) {
+        // Toggle godMode
+        this.godMode = this.godMode ? false : true;
+        console.log("godMode: ", this.godMode);
+    }
+
+    if (keyCode == 78) {
+        // Skip the level
+        game.level += 1;
+        game.moveToState(new PlayState(game.config, game.level));
+    }
+
+
 };
 
 PlayState.prototype.keyUp = function(game, keyCode) {
@@ -763,6 +831,19 @@ function Invader(x, y, rank, file, type) {
     this.type = type;
     this.width = 18;
     this.height = 14;
+}
+
+/*
+    Shield
+
+    Shields have position and life (how many bullets it can take before it 'breaks')
+*/
+function Shield(x, y) {
+    this.x = x;
+    this.y =y;
+    this.width = 18;
+    this.height = 14;    
+    this.lives = 2;
 }
 
 /*
